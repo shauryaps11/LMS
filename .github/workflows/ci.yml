@@ -1,0 +1,58 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: ./server
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: ./client
+
+      - name: Lint client
+        run: npm run lint
+        working-directory: ./client
+
+      - name: Build client
+        run: npm run build
+        working-directory: ./client
+
+      - name: Build Docker image (server)
+        run: docker build -t eduflow-server ./server
+
+      - name: Build Docker image (client)
+        run: docker build -t eduflow-client ./client
+
+      - name: Deploy to Vercel (server)
+        if: github.ref == 'refs/heads/main'
+        run: npx vercel --prod --yes --cwd ./server
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel (client)
+        if: github.ref == 'refs/heads/main'
+        run: npx vercel --prod --yes --cwd ./client
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
